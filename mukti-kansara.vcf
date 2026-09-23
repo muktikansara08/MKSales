@@ -1,0 +1,12 @@
+BEGIN:VCARD
+VERSION:3.0
+N:Kansara;Mukti;;;
+FN:Mukti Kansara
+ORG:Harcourts Motueka & Māpua
+TITLE:Licensed Sales Consultant
+TEL;TYPE=CELL,VOICE:+64 21 124 0027
+TEL;TYPE=WORK,VOICE:+64 3 528 9551
+EMAIL;TYPE=INTERNET,WORK:mukti.kansara@harcourts.co.nz
+ADR;TYPE=WORK:;;183 High Street;Motueka;Tasman;7120;New Zealand
+URL:https://mksales.co.nz
+END:VCARD

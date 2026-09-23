@@ -1,10 +1,10 @@
-// MK Commission Calculator: offline support.
-// Change VERSION whenever you upload a new index.html so phones pick it up cleanly.
-const VERSION = 'mk-calc-v1';
-const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png', './apple-touch-icon.png', './favicon.png'];
+// mksales.co.nz: offline support for the MK Commission Calculator.
+// Change VERSION whenever you upload new files so phones pick them up cleanly.
+const VERSION = 'mk-v2';
+const PRECACHE = ['/calculator', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/icon-maskable-512.png', '/apple-touch-icon.png', '/favicon.png'];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
@@ -19,27 +19,23 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   if (req.method !== 'GET') return;
 
-  // Pages: always try the network first so updates show straight away; fall back to the saved copy offline.
+  // Pages: network first so updates show straight away; saved copy when offline.
   if (req.mode === 'navigate') {
     e.respondWith(
       fetch(req)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(VERSION).then((c) => c.put('./index.html', copy));
+          if (res.ok) { const copy = res.clone(); caches.open(VERSION).then((c) => c.put(req, copy)); }
           return res;
         })
-        .catch(() => caches.match('./index.html').then((r) => r || caches.match('./')))
+        .catch(() => caches.match(req).then((r) => r || caches.match('/calculator')))
     );
     return;
   }
 
-  // Everything else (icons, fonts): saved copy first, then network.
+  // Icons, fonts and other files: saved copy first, then network.
   e.respondWith(
     caches.match(req).then((hit) => hit || fetch(req).then((res) => {
-      if (res.ok || res.type === 'opaque') {
-        const copy = res.clone();
-        caches.open(VERSION).then((c) => c.put(req, copy));
-      }
+      if (res.ok || res.type === 'opaque') { const copy = res.clone(); caches.open(VERSION).then((c) => c.put(req, copy)); }
       return res;
     }))
   );
