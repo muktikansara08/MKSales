@@ -1,6 +1,6 @@
 // mksales.co.nz: offline support for the MK Commission Calculator.
 // Change VERSION whenever you upload new files so phones pick them up cleanly.
-const VERSION = 'mk-v2';
+const VERSION = 'mk-v7';
 const PRECACHE = ['/calculator', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/icon-maskable-512.png', '/apple-touch-icon.png', '/favicon.png'];
 
 self.addEventListener('install', (e) => {

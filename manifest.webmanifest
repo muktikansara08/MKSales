@@ -1,8 +1,8 @@
 {
   "id": "./",
-  "name": "MK Commission Calculator",
+  "name": "MK Agent Tools",
   "short_name": "MK Calc",
-  "description": "Compares the tiered listing fee against flat-rate options on any sale price.",
+  "description": "Commission and conditions calculators for Harcourts Motueka & Māpua.",
   "start_url": "/calculator",
   "scope": "/",
   "display": "standalone",
@@ -10,8 +10,49 @@
   "background_color": "#001F49",
   "theme_color": "#001F49",
   "icons": [
-    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Commission calculator",
+      "short_name": "Commission",
+      "url": "/calculator",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Conditions calculator",
+      "short_name": "Conditions",
+      "url": "/calculator#conditions",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
   ]
 }
