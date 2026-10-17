@@ -487,9 +487,9 @@ h1{margin:0;font-size:28px;line-height:1.15;font-weight:700;letter-spacing:-.01e
       <button class="abtn" id="share" type="button">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>
         Send</button>
-      <button class="abtn" id="ics" type="button">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4.5" width="18" height="16" rx="2"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4M12 13v5M9.5 15.5h5"/></svg>
-        Calendar</button>
+      <button class="abtn" id="cisPdf" type="button">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>
+        <span>Fill CIS</span></button>
     </div>
   </section>
   <div class="reset-row"><button class="link" id="newContract" type="button">Start a new contract</button></div>
@@ -635,6 +635,56 @@ var WD = (function(){
            holidays:holidays, REGIONS:REGIONS, regionName:regionName, supported:supported, MATARIKI:MATARIKI };
 })();
 /*ENGINE END*/
+/*CIS START*/
+var CIS = (function(){
+  // Characters the form's Helvetica can print (Windows-1252). Macrons etc. fall back to the plain letter.
+  var EXTRA = '€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ';
+  function clean(s){
+    s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+    var out = '';
+    for (var i = 0; i < s.length; i++){
+      var ch = s[i], c = ch.charCodeAt(0);
+      if ((c >= 32 && c <= 126) || (c >= 160 && c <= 255) || EXTRA.indexOf(ch) >= 0){ out += ch; continue; }
+      var base = ch.normalize('NFD').replace(/[̀-ͯ]/g, '');
+      if (base && base.charCodeAt(0) >= 32 && base.charCodeAt(0) <= 126) out += base;
+    }
+    return out;
+  }
+  // d = { address, conditional, rows:[{field, name, timeframe, due}], others:[{name, timeframe, due}],
+  //       contract, unconditional, deposit, settlement }
+  function fill(PDFLib, bytes, d){
+    return PDFLib.PDFDocument.load(bytes).then(function(doc){
+      var form = doc.getForm(), missing = [];
+      function text(name, v){
+        if (v == null || v === '') return;
+        try{ form.getTextField(name).setText(clean(v)); }catch(e){ missing.push(name); }
+      }
+      function tick(name){ try{ form.getCheckBox(name).check(); }catch(e){ missing.push(name); } }
+      text('property_address', d.address);
+      tick(d.conditional ? 'status_conditional' : 'status_unconditional');
+      d.rows.forEach(function(r){
+        tick(r.field);
+        text(r.field + '_timeframe', r.timeframe);
+        text(r.field + '_due', r.due);
+      });
+      var notes = [];
+      d.others.forEach(function(o, i){
+        if (i < 2){
+          var f = 'cond_other' + (i + 1);
+          tick(f); text(f + '_name', o.name); text(f + '_timeframe', o.timeframe); text(f + '_due', o.due);
+        } else notes.push(o.name + ': ' + o.timeframe + ', due ' + o.due);
+      });
+      if (notes.length) text('other_notes', 'More conditions: ' + notes.join('; '));
+      text('contract_date', d.contract);
+      text('unconditional_date', d.unconditional);
+      text('deposit_due', d.deposit);
+      text('settlement_date', d.settlement);
+      return doc.save().then(function(out){ return { bytes:out, missing:missing }; });
+    });
+  }
+  return { fill:fill, clean:clean };
+})();
+/*CIS END*/
 </script>
 <script>
 /* ---------- Commission calculator ---------- */
@@ -1212,38 +1262,96 @@ var WD = (function(){
     } else copy(text, 'Copied. Paste it into an email or text.');
   });
 
-  /* ---------- Calendar (.ics) ---------- */
-  function icsEsc(s){ return String(s).replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n'); }
-  function icsDate(t){ var p = WD.parts(t); return p.y + pad(p.m) + pad(p.d); }
-  $('#ics').addEventListener('click', function(){
-    var addr = (state.addr || '').trim(), now = new Date();
-    var stamp = now.getUTCFullYear() + pad(now.getUTCMonth()+1) + pad(now.getUTCDate()) + 'T' + pad(now.getUTCHours()) + pad(now.getUTCMinutes()) + pad(now.getUTCSeconds()) + 'Z';
-    var lines = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//mksales.co.nz//Conditions calculator//EN','CALSCALE:GREGORIAN','METHOD:PUBLISH'];
-    var n = 0;
-    summaryItems().forEach(function(it){
-      if (it.t == null || it.label === 'Contract date') return;
-      n++;
-      var title = it.label + (it.extra ? ' (' + it.extra + ')' : '') + (addr ? ' · ' + addr : '');
-      lines.push('BEGIN:VEVENT',
-        'UID:' + stamp + '-' + n + '-' + Math.random().toString(36).slice(2,8) + '@mksales.co.nz',
-        'DTSTAMP:' + stamp,
-        'DTSTART;VALUE=DATE:' + icsDate(it.t),
-        'DTEND;VALUE=DATE:' + icsDate(it.t + DAY),
-        'SUMMARY:' + icsEsc(title),
-        'DESCRIPTION:' + icsEsc(plainText()),
-        'TRANSP:TRANSPARENT',
-        'BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:' + icsEsc(title),'TRIGGER:-PT15H','END:VALARM',
-        'END:VEVENT');
+  /* ---------- Contract Information Sheet (PDF) ---------- */
+  var CIS_FIELDS = { finance:'cond_finance', lim:'cond_lim', building:'cond_building', psol:'cond_purch_solicitor',
+                     vsol:'cond_vendor_solicitor', insurance:'cond_insurance', sopp:'cond_sale_of_home' };
+  function timeframeText(x){
+    var u = x.unit || 'wd', n = +x.days;
+    if (u === 'date') return 'Fixed date';
+    if (u === 'wk') return n + (n === 1 ? ' week' : ' weeks');
+    if (u === 'cd') return n + (n === 1 ? ' calendar day' : ' calendar days');
+    return n + (n === 1 ? ' working day' : ' working days');
+  }
+  function cisData(){
+    calc = compute();
+    var used = {}, rows = [], others = [];
+    calc.conds.forEach(function(c){
+      if (!c.on || c.date == null) return;
+      var x = state.conds[c.i], field = CIS_FIELDS[x.key];
+      if (!field && x.custom){
+        if (/toxic|meth/i.test(c.label)) field = 'cond_toxicology';
+        else if (/cash\s*-?\s*out/i.test(c.label)) field = 'cond_cash_out';
+      }
+      var row = { name:c.label, timeframe:timeframeText(x), due:fShort(c.date) + ', 5pm' };
+      if (field && !used[field]){ used[field] = true; row.field = field; rows.push(row); }
+      else others.push(row);
     });
-    lines.push('END:VCALENDAR');
-    if (!n){ toast('Nothing to add yet'); return; }
-    var blob = new Blob([lines.join('\r\n')], { type:'text/calendar;charset=utf-8' });
-    var name = (addr ? addr.replace(/[^\w\- ]+/g,'').trim().replace(/\s+/g,'-').slice(0,40) + '-' : '') + 'contract-dates.ics';
+    return {
+      address: (state.addr || '').trim(),
+      conditional: rows.length + others.length > 0,
+      rows: rows, others: others,
+      contract: fShort(calc.base),
+      unconditional: fShort(calc.uncond),
+      deposit: calc.dep != null ? fShort(calc.dep) : '',
+      settlement: calc.set != null ? fShort(calc.set) : ''
+    };
+  }
+  var pdfLibPromise = null, tplPromise = null;
+  function loadPdfLib(){
+    if (window.PDFLib) return Promise.resolve(window.PDFLib);
+    if (!pdfLibPromise) pdfLibPromise = new Promise(function(resolve, reject){
+      var sc = document.createElement('script');
+      sc.src = '/pdf-lib.min.js'; sc.async = true;
+      sc.onload = function(){ window.PDFLib ? resolve(window.PDFLib) : reject(new Error('lib')); };
+      sc.onerror = function(){ pdfLibPromise = null; reject(new Error('lib')); };
+      document.head.appendChild(sc);
+    });
+    return pdfLibPromise;
+  }
+  function loadTemplate(){
+    if (!tplPromise) tplPromise = fetch('/cis-template.pdf').then(function(r){
+      if (!r.ok) throw new Error('template');
+      return r.arrayBuffer();
+    }).catch(function(e){ tplPromise = null; throw e; });
+    return tplPromise;
+  }
+  function preloadCIS(){ loadPdfLib().catch(function(){}); loadTemplate().catch(function(){}); }
+  function saveFile(blob, name){
     var url = URL.createObjectURL(blob), a = document.createElement('a');
-    a.href = url; a.download = name; document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
-    toast('Calendar file ready, with reminders the day before');
+    a.href = url; a.download = name; a.rel = 'noopener';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 60000);
+    toast('CIS downloaded with the dates filled in');
+  }
+  function deliver(blob, name){
+    var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (isIOS && navigator.canShare && typeof File === 'function'){
+      var file = new File([blob], name, { type:'application/pdf' });
+      if (navigator.canShare({ files:[file] })){
+        return navigator.share({ files:[file], title:name }).then(
+          function(){ toast('CIS ready'); },
+          function(err){ if (!err || err.name !== 'AbortError') saveFile(blob, name); }
+        );
+      }
+    }
+    saveFile(blob, name);
+  }
+  $('#cisPdf').addEventListener('click', function(){
+    var btn = this, label = btn.querySelector('span');
+    if (btn.disabled) return;
+    var d = cisData();
+    var addr = d.address.replace(/[\\/:*?"<>|#%]+/g, '').replace(/\s+/g, ' ').trim().slice(0, 60);
+    var name = 'CIS - ' + (addr || 'Contract ' + fNum(calc.base).replace(/\//g, '-')) + '.pdf';
+    btn.disabled = true; label.textContent = 'Preparing…';
+    Promise.all([loadPdfLib(), loadTemplate()])
+      .then(function(r){ return CIS.fill(r[0], r[1].slice(0), d); })
+      .then(function(res){ return deliver(new Blob([res.bytes], { type:'application/pdf' }), name); })
+      .catch(function(){ toast(navigator.onLine === false ? 'Connect to the internet once to set up the CIS' : 'Could not create the CIS. Please try again.'); })
+      .then(function(){ btn.disabled = false; label.textContent = 'Fill CIS'; });
   });
+  var tabCond = document.getElementById('tab-cond');
+  if (tabCond) tabCond.addEventListener('click', preloadCIS);
+  if (document.documentElement.getAttribute('data-view') === 'conditions') setTimeout(preloadCIS, 1200);
 
   function render(light){
     renderTop();
